@@ -46,6 +46,10 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .kpi .k span{font-size:12px;color:var(--mut)}
 footer{color:var(--mut);font-size:11.5px;text-align:center;padding:18px}
 code{background:#eef2f7;padding:1px 5px;border-radius:4px;font-size:12px}
+.segnav{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 2px}
+.segbtn{padding:5px 12px;border:1px solid var(--line);border-radius:20px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--mut);background:#fff}
+.segbtn.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+tr.subtot td{background:#f8fafc;font-weight:700;border-top:1px dashed var(--line)}
 </style>
 </head>
 <body>
@@ -114,6 +118,16 @@ var DATA = {"gc_D": {"inbound": {"unload_lcl": {"USEA": 7.06, "USWE": 7.06, "USC
 var GC = DATA.gc_D;
 var WH = DATA.warehouses;
 var curWh = 'goodcang';
+var curSeg = 'all';
+// 阶段分组（对齐谷仓单独模型：头程/入库/仓储/出库/尾程/退件）
+var SEGS=[
+  {id:'head', name:'头程运费', cats:[], empty:true, emptyNote:'头程(入库头程运费)需按批次/渠道单独报价，本总模型未纳入；谷仓头程可在其单独模型中估算 → heryma99.github.io/goodcang-fulfillment-model/'},
+  {id:'inbound', name:'入库费', cats:['LC','IB_TF','IB_TS','IB_F','NPIF']},
+  {id:'storage', name:'仓储费', cats:['STO']},
+  {id:'outbound', name:'出库费', cats:['BFF']},
+  {id:'tail', name:'尾程运费', cats:['TAIL']},
+  {id:'return', name:'退件处理', cats:['RETURN']}
+];
 
 function switchTab(n){
   document.getElementById('t1').className='tab'+(n==1?' on':'');
@@ -261,19 +275,48 @@ function calcOne(id, sc){
 }
 function badge(r){ var m={'green':'🟢已验证','yellow':'🟡部分对齐','red':'🔴未对齐','na':'⚪无数据'}; var c={'green':'b-green','yellow':'b-yellow','red':'b-red','na':'b-na'}; return '<span class="badge '+c[r]+'">'+(m[r]||r)+'</span>'; }
 function fmt(x){ return (Math.round(x*100)/100).toFixed(2); }
+function selSeg(id){ curSeg=id; calcSingle(); }
 function calcSingle(){
   var sc=scn(); var r=calcOne(curWh, sc); var wh=WH[curWh];
-  var order=['LC','IB_TF','IB_TS','IB_F','NPIF','STO','BFF','TAIL','RETURN'];
   var lbl={LC:'卸货费 LC',IB_TF:'分拣费 IB_TF',IB_TS:'理货费 IB_TS',IB_F:'入库操作费 IB_F',NPIF:'新品查验 NPIF',STO:'仓储费 STO',BFF:'出库操作费 BFF',TAIL:'尾程运费 TAIL',RETURN:'退件处理 RETURN'};
   var h='<h3 style="margin:6px 0">'+wh.name+' <span style="font-weight:400;color:var(--mut);font-size:13px">'+wh.region+' · '+wh.scope+'</span></h3>';
+  // 段筛选按钮
+  var segBtns=[['all','全链路']].concat(SEGS.map(function(s){return [s.id,s.name];}));
+  h+='<div class="segnav">';
+  segBtns.forEach(function(b){ h+='<span class="segbtn'+(curSeg===b[0]?' on':'')+'" onclick="selSeg(\''+b[0]+'\')">'+b[1]+'</span>'; });
+  h+='</div>';
   h+='<table><thead><tr><th>费用科目</th><th class="num">预估金额(USD)</th><th>可验证性</th><th>计费依据</th></tr></thead><tbody>';
-  order.forEach(function(k){ if(!r.cats[k]) return;
-    var c=r.cats[k];
-    h+='<tr><td class="cat">'+lbl[k]+'</td><td class="num amt">'+(c.amt?('$'+fmt(c.amt)):'—')+'</td><td>'+badge(c.rating)+'</td><td class="note">'+ (c.note||'') +'</td></tr>';
+  var shownSegs = SEGS.filter(function(s){ return curSeg==='all' || s.id===curSeg; });
+  var grand=0, anyShown=false;
+  shownSegs.forEach(function(s){
+    // 段内有数据的科目
+    var rows=s.cats.filter(function(k){ return r.cats[k]; });
+    var segTotal=0;
+    // 段标题行
+    h+='<tr style="background:#eef3fb"><td class="cat" colspan="4" style="color:var(--brand)">'+s.name+'</td></tr>';
+    if(s.empty || rows.length===0){
+      h+='<tr><td class="cat" style="padding-left:18px">'+s.name+'</td><td class="num">—</td><td>'+badge('na')+'</td><td class="note">'+(s.emptyNote||'本仓该阶段暂无报价/账单数据')+'</td></tr>';
+    } else {
+      rows.forEach(function(k){
+        var c=r.cats[k]; segTotal+=(c.amt||0); anyShown=true;
+        h+='<tr><td class="cat" style="padding-left:18px">'+lbl[k]+'</td><td class="num amt">'+(c.amt?('$'+fmt(c.amt)):'—')+'</td><td>'+badge(c.rating)+'</td><td class="note">'+ (c.note||'') +'</td></tr>';
+      });
+      // 段小计（仅多于1项时显示，单项段不重复）
+      if(rows.length>1){
+        h+='<tr class="subtot"><td class="cat" style="padding-left:18px">'+s.name+' 小计</td><td class="num amt">$'+fmt(segTotal)+'</td><td></td><td class="note">本阶段合计</td></tr>';
+      }
+      grand+=segTotal;
+    }
   });
-  h+='</tbody><tfoot><tr><td class="cat">合计（本场景'+sc.qty+'件）</td><td class="num tot">$'+fmt(r.total)+'</td><td></td><td class="note">尾程统一 USPS GA Zone'+sc.zone+'；谷仓按实测体积/实重段</td></tr></tfoot></table>';
+  h+='</tbody>';
+  if(curSeg==='all'){
+    h+='<tfoot><tr><td class="cat">全链路合计（本场景'+sc.qty+'件）</td><td class="num tot">$'+fmt(r.total)+'</td><td></td><td class="note">尾程统一 USPS GA Zone'+sc.zone+'（谷仓=GC Parcel）；头程未纳入</td></tr></tfoot>';
+  } else {
+    h+='<tfoot><tr><td class="cat">'+(SEGS.filter(function(s){return s.id===curSeg;})[0]||{name:''}).name+' 阶段合计</td><td class="num tot">$'+fmt(grand)+'</td><td></td><td class="note">仅本阶段；切「全链路」看端到端</td></tr></tfoot>';
+  }
+  h+='</table>';
   if(curWh==='winit'){ h+='<div class="warn">⚠️ 万邑通尾程账单实走"最后一公里派送费"集成尾程（约2.28/单），与上方 USPS GA 报价非同一渠道，尾程行评级🔴，不可直接横向比。</div>'; }
-  if(curWh==='vip'){ h+='<div class="warn">⚠️ VIP 出库操作费报价0.40，但2025-04账单同名项"下架操作费"=0.65/单，命名+单价漂移，已标🟡，待你向VIP确认是否同项。</div>'; }
+  if(curWh==='vip'){ h+='<div class="warn">⚠️ VIP 报价仅含尾程，库内(卸货/上架/理货等)无报价数据，故入库段多为⚪；出库操作费报价0.40，但2025-04账单同名项"下架操作费"=0.65/单，命名+单价漂移，已标🟡，待你向VIP确认是否同项。</div>'; }
   document.getElementById('singleOut').innerHTML=h;
 }
 // ---- 对比 ----
