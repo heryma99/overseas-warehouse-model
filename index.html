@@ -397,8 +397,9 @@ function calcSingle(){
     }
   });
   h+='</tbody>';
+  var headLabel = (sc.hc==='manual') ? '手动手填' : (HC.carriers[sc.hc] ? (HC.carriers[sc.hc].name+'·'+HC.meta.channels[sc.hch]+'·'+HC.meta.regions[sc.hr]) : '—');
   if(curSeg==='all'){
-    h+='<tfoot><tr><td class="cat">全链路合计（本场景'+sc.qty+'件）</td><td class="num tot">$'+fmt(r.total)+'</td><td></td><td class="note">尾程统一 USPS GA Zone'+sc.zone+'（谷仓=GC Parcel）；头程 $'+fmt(r.cats.HEAD.amt)+'（'+HC[sc.hc].name+'·'+HC.meta.channels[sc.hch]+'·'+HC.meta.regions[sc.hr]+'）</td></tr></tfoot>';
+    h+='<tfoot><tr><td class="cat">全链路合计（本场景'+sc.qty+'件）</td><td class="num tot">$'+fmt(r.total)+'</td><td></td><td class="note">尾程统一 USPS GA Zone'+sc.zone+'（谷仓=GC Parcel）；头程 $'+fmt(r.cats.HEAD.amt)+'（'+headLabel+'）</td></tr></tfoot>';
   } else {
     h+='<tfoot><tr><td class="cat">'+(SEGS.filter(function(s){return s.id===curSeg;})[0]||{name:''}).name+' 阶段合计</td><td class="num tot">$'+fmt(grand)+'</td><td></td><td class="note">仅本阶段；切「全链路」看端到端</td></tr></tfoot>';
   }
