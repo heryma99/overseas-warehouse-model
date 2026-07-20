@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>海外仓价格预估总模型</title>
 <style>
 :root{--bg:#f5f7fa;--card:#fff;--ink:#1f2733;--mut:#6b7785;--line:#e3e8ef;--brand:#2563eb;--green:#16a34a;--yellow:#d97706;--red:#dc2626;--na:#94a3b8;}
@@ -278,7 +281,7 @@ function tailGoodcang(sc){
   var tier=ceilKey(Object.keys(g), bk);
   var row=g[tier]; if(!row) return null;
   var p=row[sc.zone]; if(p==null) return null;
-  return {price:p*0.88, bk:bk, tier:tier};
+  return {price:p*0.88, listPrice:p, bk:bk, tier:tier, disc:0.88};
 }
 function tailNorm(norm, sc, kind){
   var bk, oz, lb, row, price;
@@ -359,14 +362,17 @@ function calcOne(id, sc){
     var stoRate=(GC.storage.std['XS/S']['X＞30'][w]||0);
     var sto= stoRate*sc.vol*Math.max(0,sc.days-30);
     cats.STO={amt:sto, rating:'green', note:'XS/S >30天 '+stoRate+'/CBM/天 ×'+sc.vol+'CBM ×'+(Math.max(0,sc.days-30))+'天(前30天免)'};
-    // 出库
-    var bff=(GC.outbound.pick[bffTier(sc.kg)][w]||0)*sc.qty;
-    cats.BFF={amt:bff, rating:'green', note:'出库操作 重量段'+tier+' ×'+sc.qty+'件'};
-    // 尾程
+    // 出库（谷仓出库操作费属账户操作费，适用≈70%账户折扣，与IB_TF同口径）
+    var bt=bffTier(sc.kg);
+    var bffList=(GC.outbound.pick[bt][w]||0);
+    var bffDisc=0.70;
+    var bff=bffList*bffDisc*sc.qty;
+    cats.BFF={amt:bff, rating:'green', note:'出库操作费 挂牌 $'+fmt(bffList)+'/件('+bt+') × '+Math.round(bffDisc*100)+'% (账户操作费折扣) = $'+fmt(bffList*bffDisc)+'/件 ×'+sc.qty+'件'};
+    // 尾程（谷仓尾程=GC Parcel，适用≈88%账户尾程折扣）
     var t=tailGoodcang(sc);
-    cats.TAIL={amt:t?t.price:0, rating:'green', note:'GC Parcel Zone'+sc.zone+' 计费重'+ (t?t.bk.toFixed(3):'?')+'kg('+tier+') ×88%实结'};
-    // 退件
-    cats.RETURN={amt:0, rating:'yellow', note:'退件4档×18仓，部分已录，未纳入估算'};
+    cats.TAIL={amt:t?t.price:0, rating:'green', note: t? ('GC Parcel Zone'+sc.zone+' 计费重'+t.bk.toFixed(3)+'kg('+t.tier+') ｜ 挂牌 $'+fmt(t.listPrice)+' × '+Math.round(t.disc*100)+'% (账户尾程折扣) = $'+fmt(t.price)) : 'GC Parcel 无该Zone报价'};
+    // 退件（谷仓退件出库操作费属账户操作费，适用≈70%账户折扣，与出库BFF同口径；4档重量段边界待目检sheet确认，暂未估算）
+    cats.RETURN={amt:0, rating:'yellow', note:'退件处理(退件出库操作费)属账户操作费，适用≈70%账户折扣(与出库BFF同口径)；本页暂未接入退件4档重量段费率表(档位边界待目检sheet确认)，故未估算。折扣口径已确认存在。'};
   } else {
     // 非谷仓：用 payload 内嵌费率
     var ib=wh.inbound, ob=wh.outbound, st=wh.storage, rt=wh.return, tl=wh.tail;
