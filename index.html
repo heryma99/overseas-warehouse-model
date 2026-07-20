@@ -419,6 +419,7 @@ function calcOne(id, sc){
 }
 function badge(r){ var m={'green':'🟢已验证','yellow':'🟡部分对齐','red':'🔴未对齐','na':'⚪无数据'}; var c={'green':'b-green','yellow':'b-yellow','red':'b-red','na':'b-na'}; return '<span class="badge '+c[r]+'">'+(m[r]||r)+'</span>'; }
 function fmt(x){ return (Math.round(x*100)/100).toFixed(2); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function selSeg(id){ curSeg=id; calcSingle(); }
 function calcSingle(){
   var sc=scn(); var r=calcOne(curWh, sc); var wh=WH[curWh];
@@ -440,11 +441,11 @@ function calcSingle(){
     // 段标题行
     h+='<tr style="background:#eef3fb"><td class="cat" colspan="4" style="color:var(--brand)">'+s.name+'</td></tr>';
     if(s.empty || rows.length===0){
-      h+='<tr><td class="cat" style="padding-left:18px">'+s.name+'</td><td class="num">—</td><td>'+badge('na')+'</td><td class="note">'+(s.emptyNote||'本仓该阶段暂无报价/账单数据')+'</td></tr>';
+      h+='<tr><td class="cat" style="padding-left:18px">'+s.name+'</td><td class="num">—</td><td>'+badge('na')+'</td><td class="note">'+esc(s.emptyNote||'本仓该阶段暂无报价/账单数据')+'</td></tr>';
     } else {
       rows.forEach(function(k){
         var c=r.cats[k]; segTotal+=(c.amt||0); anyShown=true;
-        h+='<tr><td class="cat" style="padding-left:18px">'+lbl[k]+'</td><td class="num amt">'+(c.amt?((k==='HEAD'?'¥':'$')+fmt(c.amt)):'—')+'</td><td>'+badge(c.rating)+'</td><td class="note">'+ (c.note||'') +'</td></tr>';
+        h+='<tr><td class="cat" style="padding-left:18px">'+lbl[k]+'</td><td class="num amt">'+(c.amt?((k==='HEAD'?'¥':'$')+fmt(c.amt)):'—')+'</td><td>'+badge(c.rating)+'</td><td class="note">'+esc(c.note||'')+'</td></tr>';
       });
       // 段小计（仅多于1项时显示，单项段不重复）
       if(rows.length>1){
